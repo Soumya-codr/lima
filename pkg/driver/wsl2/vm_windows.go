@@ -134,9 +134,14 @@ func provisionVM(ctx context.Context, instanceDir, instanceName, distroName stri
 
 		<-ctx.Done()
 		logrus.Info("Context closed, stopping vm")
-		if status, err := getWslStatus(ctx, instanceName); err == nil &&
-			status == limatype.StatusRunning {
-			_ = stopVM(ctx, distroName)
+		cleanupCtx := context.WithoutCancel(ctx)
+		status, err := getWslStatus(cleanupCtx, instanceName)
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to get WSL status during cleanup")
+		} else if status == limatype.StatusRunning {
+			if err := stopVM(cleanupCtx, distroName); err != nil {
+				logrus.WithError(err).Warn("Failed to stop WSL VM during cleanup")
+			}
 		}
 	}()
 
