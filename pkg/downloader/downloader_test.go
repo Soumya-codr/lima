@@ -172,6 +172,26 @@ func TestDownloadRemote(t *testing.T) {
 		_, err = Cached(dummyRemoteFileURL, WithExpectedDigest(wrongDigest), WithCacheDir(cacheDir))
 		assert.ErrorContains(t, err, "expected digest")
 	})
+
+	t.Run("progress", func(t *testing.T) {
+		localPath := filepath.Join(t.TempDir(), t.Name())
+		localFile := filepath.Join(t.TempDir(), "test-file")
+		testDownloadFileContents := []byte("TestDownloadLocalProgress")
+		assert.NilError(t, os.WriteFile(localFile, testDownloadFileContents, 0o644))
+		testLocalFileURL := "file://" + localFile
+
+		// Enable progress for this test
+		HideProgress = false
+		defer func() { HideProgress = true }()
+
+		r, err := Download(t.Context(), localPath, testLocalFileURL)
+		assert.NilError(t, err)
+		assert.Equal(t, StatusDownloaded, r.Status)
+
+		got, err := os.ReadFile(localPath)
+		assert.NilError(t, err)
+		assert.Equal(t, string(got), string(testDownloadFileContents))
+	})
 	t.Run("metadata", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := Cached(dummyRemoteFileURL, WithExpectedDigest(dummyRemoteFileDigest))

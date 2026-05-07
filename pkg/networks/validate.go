@@ -51,7 +51,25 @@ func (c *Config) Validate() error {
 	if socketVMNetNotFound {
 		return fmt.Errorf("networks.yaml: %q (`paths.socketVMNet`) has to be installed", pathsMap["socketVMNet"])
 	}
-	// TODO(jandubois): validate network definitions
+
+	for name, nw := range c.Networks {
+		if nw.Mode == "" {
+			return fmt.Errorf("network %q: mode is not set", name)
+		}
+		foundMode := false
+		for _, mode := range Modes {
+			if nw.Mode == mode {
+				foundMode = true
+				break
+			}
+		}
+		if !foundMode {
+			return fmt.Errorf("network %q: unknown mode %q; must be one of %v", name, nw.Mode, Modes)
+		}
+		if nw.Mode == ModeBridged && nw.Interface == "" {
+			return fmt.Errorf("network %q: bridged mode requires an interface", name)
+		}
+	}
 	return nil
 }
 
@@ -94,7 +112,7 @@ func validatePath(path string, allowDaemonGroupWritable bool) error {
 		return fmt.Errorf("could not retrieve stat buffer for %q", path)
 	}
 	if runtime.GOOS != "darwin" {
-		return errors.New("vmnet code must not be called on non-Darwin") // TODO: move to *_darwin.go
+		return nil
 	}
 	// TODO: cache looked up UIDs/GIDs
 	root, err := osutil.LookupUser("root")

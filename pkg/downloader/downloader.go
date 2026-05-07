@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
-	"github.com/containerd/continuity/fs"
 	"github.com/opencontainers/go-digest"
 	"github.com/sirupsen/logrus"
 
@@ -477,8 +476,50 @@ func copyLocal(ctx context.Context, dst, src, ext string, decompress bool, descr
 			return decompressLocal(ctx, commandByMagic, dstPath, srcPath, ext, description)
 		}
 	}
-	// TODO: progress bar for copy
-	return fs.CopyFile(dstPath, srcPath)
+	return copyFileWithProgress(dstPath, srcPath, description)
+}
+
+func copyFileWithProgress(dst, src, description string) error {
+	logrus.Debugf("copying %q to %q", src, dst)
+	st, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, st.Mode())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	bar, err := progressbar.New(st.Size())
+	if err != nil {
+		return err
+	}
+	if HideProgress {
+		hideBar(bar)
+	}
+
+	if !HideProgress {
+		if description == "" {
+			description = filepath.Base(src)
+		}
+		fmt.Fprintf(os.Stderr, "Copying %s\n", description)
+	}
+
+	bar.Start()
+	_, err = io.Copy(out, bar.NewProxyReader(in))
+	bar.Finish()
+	if err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 func decompressor(ext string) string {
